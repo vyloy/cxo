@@ -12,6 +12,8 @@ import (
 
 	"github.com/skycoin/skycoin/src/cipher"
 
+	"fmt"
+
 	"github.com/skycoin/cxo/node/gnet"
 	"github.com/skycoin/cxo/node/log"
 	"github.com/skycoin/cxo/skyobject"
@@ -19,7 +21,6 @@ import (
 
 // defaults
 const (
-
 	// server defaults
 
 	EnableRPC      bool   = true        // default RPC pin
@@ -68,6 +69,17 @@ func initDataDir(dir string) error {
 	return os.MkdirAll(dir, 0700)
 }
 
+type Addresses []string
+
+func (addrs *Addresses) String() string {
+	return fmt.Sprintf("%v", []string(*addrs))
+}
+
+func (addrs *Addresses) Set(addr string) error {
+	*addrs = append(*addrs, addr)
+	return nil
+}
+
 // A Config represnets configurations
 // of a Node. The config contains configurations
 // for gnet.Pool and  for log.Logger. If logger of
@@ -112,6 +124,9 @@ type Config struct {
 
 	// PublicServer never keeps secret feeds it share
 	PublicServer bool
+
+	// ServiceDiscovery Addresses
+	DiscoveryAddresses Addresses
 
 	// DropNonFullRoots removes Root object from
 	// DB if it can't be filled
@@ -254,6 +269,9 @@ func (s *Config) FromFlags() {
 		"public-server",
 		s.PublicServer,
 		"make the server public")
+	flag.Var(&s.DiscoveryAddresses,
+		"discovery-address",
+		"address of service discovery")
 
 	// TODO: skyobejct.Configs from flags
 

@@ -13,6 +13,7 @@ import (
 
 	"github.com/skycoin/cxo/node/gnet"
 	"github.com/skycoin/cxo/node/log"
+	"github.com/skycoin/net/skycoin-messenger/factory"
 )
 
 // common errors
@@ -71,6 +72,8 @@ type Node struct {
 	doneo sync.Once
 
 	await sync.WaitGroup
+
+	discovery *factory.MessengerFactory
 }
 
 // NewNode creates new Node instnace using given
@@ -254,6 +257,20 @@ func (s *Node) start() (err error) {
 		s.conf.Log.Debug,
 	)
 
+	// connect to service discovery
+	if len(s.conf.DiscoveryAddresses) > 0 {
+		f := factory.NewMessengerFactory()
+		for _, addr := range s.conf.DiscoveryAddresses {
+			f.ConnectWithConfig(addr, &factory.ConnConfig{
+				Reconnect:                true,
+				ReconnectWait:            time.Second * 30,
+				FindServiceNodesCallback: s.findServiceNodesCallback,
+				OnConnected:              s.updateServiceDiscovery,
+			})
+		}
+		s.discovery = f
+	}
+
 	// start listener
 	if s.conf.EnableListener == true {
 		if err = s.pool.Listen(s.conf.Listen); err != nil {
@@ -277,6 +294,34 @@ func (s *Node) start() (err error) {
 	}
 
 	return
+}
+
+func (s *Node) updateServiceDiscovery(conn *factory.Connection) {
+	feeds := s.Feeds()
+	services := make([]*factory.Service, len(feeds))
+	for i, feed := range feeds {
+		services[i] = &factory.Service{Key: feed}
+	}
+	conn.FindServiceNodesByKeys(feeds)
+	if s.conf.PublicServer {
+		conn.UpdateServices(&factory.NodeServices{ServiceAddress: s.conf.Listen, Services: services})
+	}
+}
+
+func (s *Node) findServiceNodesCallback(result map[string][]string) {
+	for k, v := range result {
+		key, err := cipher.PubKeyFromHex(k)
+		if err != nil {
+			continue
+		}
+		for _, addr := range v {
+			c, err := s.Pool().Dial(addr)
+			if err != nil {
+				continue
+			}
+			s.Subscribe(c, key)
+		}
+	}
 }
 
 // Close the Node
@@ -927,6 +972,7 @@ func (s *Node) addFeed(feed cipher.PubKey) (already bool) {
 	if _, already = s.feeds[feed]; !already {
 		s.so.AddFeed(feed) // TODO (kostyarin): handle error
 		s.feeds[feed] = make(map[*gnet.Conn]struct{})
+		go s.discovery.ForEachConn(s.updateServiceDiscovery)
 	}
 	return
 }
@@ -1029,6 +1075,7 @@ func (s *Node) deleteFeed(feed cipher.PubKey) (cs map[*gnet.Conn]struct{}) {
 		delete(s.feeds, feed)
 		s.deleteFeedFromPending(feed)
 		s.so.DelFeed(feed) // delete from database
+		go s.discovery.ForEachConn(s.updateServiceDiscovery)
 	}
 	return
 }

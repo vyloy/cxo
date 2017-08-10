@@ -91,12 +91,12 @@ func main() {
 
 	// conenct to server
 
-	conn, err := s.Pool().Dial(ServerAddress)
-	if err != nil {
-		s.Println("[ERR] can't conenct to server:", err)
-		return
-	}
-	s.Subscribe(conn, pk) // subscribe to conn
+	//conn, err := s.Pool().Dial(ServerAddress)
+	//if err != nil {
+	//	s.Println("[ERR] can't conenct to server:", err)
+	//	return
+	//}
+	//s.Subscribe(conn, pk) // subscribe to conn
 
 	waitInterrupt(s.Quiting())
 
