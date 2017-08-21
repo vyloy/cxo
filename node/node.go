@@ -262,10 +262,10 @@ func (s *Node) start() (err error) {
 		f := factory.NewMessengerFactory()
 		for _, addr := range s.conf.DiscoveryAddresses {
 			f.ConnectWithConfig(addr, &factory.ConnConfig{
-				Reconnect:                true,
-				ReconnectWait:            time.Second * 30,
-				FindServiceNodesCallback: s.findServiceNodesCallback,
-				OnConnected:              s.updateServiceDiscovery,
+				Reconnect:                      true,
+				ReconnectWait:                  time.Second * 30,
+				FindServiceNodesByKeysCallback: s.findServiceNodesCallback,
+				OnConnected:                    s.updateServiceDiscovery,
 			})
 		}
 		s.discovery = f
@@ -308,8 +308,8 @@ func (s *Node) updateServiceDiscovery(conn *factory.Connection) {
 	}
 }
 
-func (s *Node) findServiceNodesCallback(result map[string][]string) {
-	for k, v := range result {
+func (s *Node) findServiceNodesCallback(resp *factory.QueryResp) {
+	for k, v := range resp.Result {
 		key, err := cipher.PubKeyFromHex(k)
 		if err != nil {
 			continue
